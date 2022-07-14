@@ -35,6 +35,8 @@ library(forecast)
 library(tibbletime)
 library(urca)
 library(rugarch)
+
+
 ```
 
 # Project Report 2
