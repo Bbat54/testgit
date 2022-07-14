@@ -1,0 +1,926 @@
+---
+title: "Financial Time-Series Project"
+author: "Batchimeg Battur, Ryan Timothy Yu, Harry Yan"
+date: "4/20/2022"
+output: 
+    
+    rmdformats::downcute:
+      downcute_theme: "chaos"
+      self_contained: true
+      gallery: true
+      lightbox: true
+      collapse: true
+      code_folding: hide
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+class.source = "fold-show"
+require(quantmod)
+require(fGarch) 
+library(DT)
+require(tseries)
+library(fBasics)
+library(Quandl)
+#library(rmdformats)
+library(tidyverse)
+library(ggplot2)
+library(colorspace)
+library(tseries)
+library(gridExtra)
+library(forecast)
+library(tibbletime)
+library(urca)
+library(rugarch)
+```
+
+# Project Report 2
+
+## A. Overview of the primary asset and the market for the asset
+
+As our team members were interested in technology field, we have chosen
+**XLK** ETF as the asset we will be investigating throughout this
+project.
+
+### Brief introduction
+
+XLK was launched in December of 1998 and was one of the first to launch
+in its' field, which specifically narrowly focused on the US technology
+sector of the S&P 500 Index. Also, it is heavily concentrated on
+large-cap companies which lets the ETF to result in lower volatility
+than small cap companies and tilt toward value compared to other
+tech-industry benchmark index.
+
+XLK has an MSCI ESG Fund Rating of AAA based on a score of 10.00 out of
+10. The MSCI ESG Fund Rating measures the resiliency of portfolios to
+long-term risks and opportunities arising from environmental, social,
+and governance factors. There are few competing ETFs such as IYW, FTEC,
+PSCT, but the XLK is known as the long time cheapest and largest in its
+segment.
+
+XLK was issued by State Street Global Advisors Funds Management Inc. has
+a gross expense ratio of 0.1% and the total asset under the management
+as of April 2022 is \$46,350.97 M.
+
+The XLK top 10 holdings are shown in figure 1 below:
+
+```{r include=FALSE, message=FALSE}
+companies = c('Apple Inc.',
+'Microsoft Corporation',
+'NVIDIA Corporation',
+'Visa Inc. Class A',
+'Mastercard Incorporated Class A',
+'Broadcom Inc.',
+'Cisco Systems, Inc.',
+'Adobe Incorporated',
+'Accenture Plc Class A',
+'Salesforce, Inc.',
+'Intel Corporation',
+'Advanced Micro Devices, Inc.',
+'Qualcomm Incorporated',
+'Texas Instruments Incorporated',
+'Intuit Inc.',
+'PayPal Holdings, Inc.',
+'Oracle Corporation',
+'International Business Machines Corporation',
+'ServiceNow, Inc.',
+'Applied Materials, Inc.',
+'Automatic Data Processing, Inc.',
+'Micron Technology, Inc.',
+'Analog Devices, Inc.',
+'Lam Research Corporation',
+'Fidelity National Information Services, Inc.',
+'Fiserv, Inc.',
+'KLA Corporation',
+'Synopsys, Inc.',
+'NXP Semiconductors NV',
+'Autodesk, Inc.',
+'Cognizant Technology Solutions Corporation Class A',
+'Fortinet, Inc.',
+'Cadence Design Systems, Inc.',
+'Amphenol Corporation Class A',
+'Paychex, Inc.',
+'TE Connectivity Ltd.',
+'Microchip Technology Incorporated',
+'Motorola Solutions, Inc.',
+'Global Payments Inc.',
+'HP Inc.',
+'Arista Networks, Inc.',
+'Keysight Technologies Inc',
+'Enphase Energy, Inc.',
+'ANSYS, Inc.',
+'Corning Inc',
+'Gartner, Inc.',
+'CDW Corp.',
+'Zebra Technologies Corporation Class A',
+'Teledyne Technologies Incorporated',
+'Skyworks Solutions, Inc.',
+'VeriSign, Inc.',
+'Hewlett Packard Enterprise Co.',
+'FLEETCOR Technologies, Inc.',
+'Monolithic Power Systems, Inc.',
+'Akamai Technologies, Inc.',
+'Teradyne, Inc.',
+'Trimble Inc.',
+'State Street Institutional Liquid Reserves Fund',
+'NetApp, Inc.',
+'Seagate Technology Holdings PLC',
+'Broadridge Financial Solutions, Inc.',
+'Tyler Technologies, Inc.',
+'SolarEdge Technologies, Inc.',
+'Paycom Software, Inc.',
+'EPAM Systems, Inc.',
+'NortonLifeLock Inc.',
+'Western Digital Corporation',
+'Jack Henry & Associates, Inc.',
+'Qorvo, Inc.',
+'F5, Inc.',
+'Citrix Systems, Inc.',
+'Juniper Networks, Inc.',
+'PTC Inc.',
+'Ceridian HCM Holding, Inc.',
+'DXC Technology Co.',
+'IPG Photonics Corporation',
+'U.S. Dollar'
+)
+
+percentage = c(0.2302, 0.2225, 0.0443, 0.0371, 0.0311,
+               0.0257, 0.0231, 0.0217, 0.0214, 0.0212,
+               0.0197, 0.0177, 0.0170, 0.0166, 0.0141,
+               0.0139, 0.0130, 0.0115, 0.0113, 0.0113,
+               0.0097, 0.0085, 0.0085, 0.0073, 0.0062,
+               0.0060, 0.0054, 0.0051, 0.0048, 0.0047,
+               0.0046, 0.0046, 0.0045, 0.0045, 0.0044,
+               0.0042, 0.0041, 0.0040, 0.0039, 0.0039,
+               0.0031, 0.0029, 0.0028, 0.0028, 0.0027,
+               0.0024, 0.0024, 0.0022, 0.0022, 0.0022,
+               0.0022, 0.0021, 0.0020, 0.0020, 0.0019,
+               0.0019, 0.0018, 0.0018, 0.0018, 0.0018,
+               0.0018, 0.0018, 0.0017, 0.0017, 0.0017,
+               0.0015, 0.0015, 0.0014, 0.0013, 0.0013,
+               0.0012, 0.0012, 0.0011, 0.0009, 0.0008,
+               0.0004, 0.0000)
+
+df = data.frame(companies,percentage)
+df<-df%>%
+  mutate(percentage = round(percentage*100,0))
+top_10<-df[1:10,]
+ten_comp_percentange<-top_10%>%
+  summarise(`ten percent` = sum(percentage))
+top_10[nrow(top_10) + 1,] <- c("others",33)
+colnames(top_10)<-c("company", "percentage")
+top_10<-top_10%>%
+  mutate(percentage = as.numeric(percentage))
+pie<-top_10%>%
+  ggplot(aes(x ="", y=percentage, fill = company))+
+  geom_bar(stat="identity", width=1) + coord_polar("y", start=0)+ 
+  theme_void()+ scale_fill_discrete_qualitative(palette = "Dynamic") + geom_text(aes(label = paste(round(as.numeric(percentage)/sum(as.numeric(percentage))* 100,1),"%"), x = 1.3), size=3, color = "black", position = position_stack(vjust = 0.5))
+        
+```
+
+```{r include=TRUE, message=FALSE}
+pie
+```
+
+<center>
+
+*Fig 1. XLK top 10 holdings*
+
+</center>
+
+### Secondary Asset
+
+For our secondary asset we will be choosing the Vanguard Information
+Technology ETF (VGT). This ETF closely relates to XLK as they are both
+following the technology sector and have similar holdings of technology
+companies.
+
+## B. One application for the econometric analysis.
+
+A hedge fund manager that is considering incorporating XLK into their
+client's portfolio can conduct a Value at Risk analysis to determine the
+potential for loss and the probability that the defined loss will occur.
+
+## C.1. XLK Properties of time-series: Descriptive Statistics
+
+We pulled the XLK price data from Yahoo finance between December 1998
+and April 2022.
+
+```{r message=FALSE}
+getSymbols("XLK",from="1998-12-01",to="2022-04-07")  #specify the data span
+```
+
+Our XLK price dataset has 6 columns and 5848 rows. The first and last 5
+rows of the data are displayed below:
+
+```{r message=FALSE}
+dim(XLK)  #finds the size of the data downloaded
+head(XLK)  #shows the first 6 rows of data
+tail(XLK)   #shows the last 6 rows of data
+```
+
+The basic statistics are shown below:
+
+```{r message=FALSE}
+bstat<- basicStats(XLK)
+datatable(bstat)
+```
+
+We performed Jarque-Bera test to examine the normality of the
+log-return. We found that the p-value\<2.2e-16, which is less than 0.05.
+Therefore, we concluded that the log-return does not follow the normal
+distribution.
+
+```{r message=FALSE}
+#Normality test
+XLK_Price_Adj=XLK$XLK.Adjusted #% Define a new variable
+XLK_R=diff(log(XLK_Price_Adj))
+XLK_R = na.omit(XLK_R)
+jarque.bera.test(XLK_R)
+```
+
+### Secondary Asset (VGT): Properties of time-series: Descriptive Statistics
+
+We pulled the VGT price data from Yahoo finance between December 1998
+and April 2022.
+
+```{r message=FALSE}
+getSymbols("VGT",from="1998-12-01",to="2022-04-07")  #specify the data span
+```
+
+The basic statistics are shown below:
+
+```{r message=FALSE}
+bstat2<- basicStats(VGT)
+datatable(bstat2)
+```
+
+We performed Jarque-Bera test to examine the normality of the
+log-return. We found that the p-value\<2.2e-16, which is less than 0.05.
+Therefore, we concluded that the log-return does not follow the normal
+distribution.
+
+```{r message=FALSE}
+#Normality test
+VGT_Price_Adj=VGT$VGT.Adjusted #% Define a new variable
+VGT_R=diff(log(VGT_Price_Adj)) #% Calculate log returns
+VGT_R<-na.omit(VGT_R)
+jarque.bera.test(VGT_R)
+```
+
+## C.2. Properties of time-series: Vizulatization
+
+The daily and monthly price and volume charts are shown in figure 2 & 3
+below. From the observations we can see that the price is
+non-stationary.
+
+### XLK Daily Price and volume
+
+```{r message=FALSE}
+chartSeries(XLK)
+```
+
+<center>
+
+*Fig 2. XLK Daily price and volume chart*
+
+</center>
+
+### XLK Monthly Price and volume
+
+```{r}
+XLK_monthly <- to.monthly(XLK)  
+chartSeries(XLK_monthly, type="bar")
+```
+
+<center>
+
+*Fig 3. XLK Monthly price and volume chart*
+
+</center>
+
+#### VGT Price and volume
+
+For comparison, the daily price and volume chart for VGT is shown in
+figure 4 below. From the observations we can see that the price is also
+non-stationary.
+
+```{r message=FALSE}
+chartSeries(VGT)
+```
+
+<center>
+
+*Fig 4. VGT Daily price and volume chart*
+
+</center>
+
+### Return: XLK chart and test
+
+Next we created a new variable that represents log return of XLK and
+have plotted it over the time. Refer to figure 5, 6, and 7 below.
+
+#### Relationship Between Daily XLK Returns
+
+```{r message=FALSE}
+XLK_Price_Adj=XLK$XLK.Adjusted #% Define a new variable
+XLK_R=diff(log(XLK_Price_Adj)) #% Calculate log returns
+XLK_R<-na.omit(XLK_R)
+plot(XLK_R,type='l')
+```
+
+<center>
+
+*Fig 5. XLK Daily Log return over the time*
+
+</center>
+
+#### Relationship Between Weekly XLK Returns
+
+```{r}
+XLK_weekly <- to.weekly(XLK) 
+XLK_Price_Adj_weekly=XLK_weekly$XLK.Adjusted #% Define a new variable
+XLK_R_weekly=diff(log(XLK_Price_Adj_weekly)) #% Calculate log returns
+XLK_R_weekly<-na.omit(XLK_R_weekly)
+plot(XLK_R_weekly,type='l')
+```
+
+<center>
+
+*Fig 6. XLK Weekly Log return over the time*
+
+</center>
+
+#### Relationship Between Monthly XLK Returns
+
+```{r}
+XLK_Price_Adj_monthly=XLK_monthly$XLK.Adjusted #% Define a new variable
+XLK_R_monthly=diff(log(XLK_Price_Adj_monthly)) #% Calculate log returns
+XLK_R_monthly<-na.omit(XLK_R_monthly)
+plot(XLK_R_monthly,type='l')
+```
+
+<center>
+
+*Fig 7. XLK Monthly Log return over the time*
+
+</center>
+
+### Return: VGT chart and test
+
+#### Relationship Between Daily VGT Returns
+
+For comparison, we created a new variable that represents log return of
+VGT and have plotted it over the time. Refer to figure 8 below.
+
+```{r message=FALSE}
+VGT_Price_Adj=VGT$VGT.Adjusted #% Define a new variable
+VGT_R=diff(log(VGT_Price_Adj)) #% Calculate log returns
+VGT_R<-na.omit(VGT_R)
+plot(VGT_R,type='l')
+```
+
+<center>
+
+*Fig 8. VGT Daily Log return over the time*
+
+</center>
+
+## Primary Asset (XLK) vs Secondary Asset (VGT):
+
+We compared the price and volume for both assets over time. We
+determined that they both follow the same upward trend and are
+non-stationary. Both assets do not follow a normal distribution based on
+the Jarque-Bera test and have similar return trends. Since the two have
+similar statistical properties and follow the same technology sector,
+this would make the two assets appropriate for multivariate testing in
+part E.
+
+## C.3 Unit Root and Seasonality Test
+
+### Unit Root
+
+For unit root testing, we conducted the Augmented Dickey-Fuller Test on
+the log return of XLK, including trend. The resulting p-value of the
+series without drift and trend is \< 2.2e-16. Therefore, we reject the
+null hypothesis and consider the series to be stationary.
+
+```{r}
+summary(ur.df(XLK_R,type="trend"))
+```
+
+### Seasonality
+
+Based on the ACF of the log return of XLK, there is no seasonality in
+the data because we do not see any reoccurring significant peaks in past
+lags.
+
+```{r}
+acf(XLK_R)
+```
+
+## D. ARIMA model of price and return
+
+We ran the ARIMA model for XLK price, return, and risk.
+
+### ARIMA for XLK Price
+
+The ARIMA for XLK price chose an order of AR(5) with 2 integrations.The
+AIC is 15059.55.
+
+```{r}
+
+auto.arima(XLK[,6])
+```
+
+### ARIMA for XLK log return
+
+The ARIMA for XLK log return chose an order of AR(1) with 1 integration.
+The AIC is -28949.78.
+
+```{r}
+
+auto.arima(XLK_R)
+```
+
+### ARIMA for XLK Risk (XLK_R\^2)
+
+The ARIMA for XLK Risk chose an order of AR(3) and MA(1) with 1
+integration. The AIC is -67985.83.
+
+```{r}
+auto.arima(XLK_R^2)
+```
+
+## D.1. Forecasting Power of the ARIMA model
+
+We used the price and log return for the date range 1998-04-07 to
+2020-04-07 of XLK to build the ARIMA models. We then used the ARIMA
+models to forecast the price and log return of XLK for the following
+year. Based on the results, the log return ARIMA model was able to
+forecast with an RMSE of 0.0163, meaning the model's prediction is off
+by an average of 1.63%. The price ARIMA model was able to forecast with
+an RMSE of 480.3395, meaning the model's prediction is off by an average
+of \$480.34. Therefore the price predictions are not useful since the
+error is very large. However the error for the log return may be
+acceptable.
+
+```{r}
+library(forecast)
+
+getSymbols("XLK", from = "1998-04-07", to="2020-04-07")
+XLK_train=data.frame(Date=index(XLK), coredata(XLK)) #% Define a new variable
+XLK_R=ts(diff(log(XLK_train$XLK.Adjusted))) #% Calculate log returns
+XLK_R<-na.omit(XLK_R)
+model = auto.arima(XLK_R)
+model
+for1 = forecast(model,250)
+autoplot(for1)
+
+model2 = auto.arima(XLK$XLK.Adjusted)
+model2
+for2 = forecast(model2,250)
+autoplot(for2) + ylim(0, 300) + xlim(5000, 5400)
+
+  
+getSymbols("XLK", from = "2020-04-08", to="2021-04-07")
+XLK_R=diff(log(XLK$XLK.Adjusted))
+mse1 <- mean((na.omit(XLK_R)-for1$mean[-1])^2)
+mse2 <- mean((XLK$XLK.Adjusted-for2$mean)^2)
+sqrt(mse1)
+sqrt(mse2)
+```
+
+## Extra Analysis for XLK_R\^2
+
+### ACF for XLK_R\^2
+
+The ACF plot below shows that one lag is significant in predicting the
+current XLK risk. Refer to Figure 9. Therefore, one MA term should be
+included in the ARIMA model. This agrees with the auto ARIMA conducted
+for XLK risk where only one MA term is included.
+
+```{r}
+XLK_diff2 <- diff(XLK_R^2)
+XLK_diff2 <- na.omit(XLK_diff2)
+acf(XLK_diff2)
+```
+
+<center>
+
+*Fig 9. XLK Daily Log return over the time*
+
+</center>
+
+### PACF for XLK_R\^2
+
+The PACF above describes agrees with the auto ARIMA model for XLK_R\^2
+where 3 lags of the AR model were included. Refer to figure 10. A
+negative PACF values also suggest that an MA term should be included in
+the ARIMA model. This agrees with the ACF plot shown above.
+
+```{r}
+pacf(XLK_diff2)
+```
+
+<center>
+
+*Fig 10. XLK Daily Log return over the time*
+
+</center>
+
+## E. Multi-variate analysis
+
+```{r}
+chartSeries(XLK)
+```
+
+<center>
+
+*Fig 11. XLK Price over the time*
+
+</center>
+
+```{r}
+chartSeries(VGT)
+```
+
+<center>
+
+*Fig 12. VGT Price over the time*
+
+</center>
+
+From the above two graphs, we observe that both assets' prices are
+non-stationary. To test cointegrating relationship between these two
+assets, we apply Johansen's Cointegration Test.
+
+```{r}
+x <- cbind(XLK$XLK.Adjusted, VGT$VGT.Adjusted)
+x <- na.omit(unclass(x))
+m = ca.jo(x,K=2)
+summary(m)
+```
+
+The above shows the summary of the Johansen's Cointegration Test. Since
+the test statistic does not exceed the 5% level for the first hypothesis
+test (r = 0), we have no evidence to reject the null hypothesis of no
+cointegration. So we need to take differences on these two series to
+make them stationary.
+
+```{r}
+x <- as.data.frame(x)
+x_diff <- as.data.frame(cbind(diff(x$XLK.Adjusted), diff(x$VGT.Adjusted)))
+colnames(x_diff) <- c("XLK_diff", "VGT_diff")
+```
+
+We took the first difference for both of the two assets and we want to
+see whether they are stationary after the first difference by applying
+the adf test.
+
+```{r}
+summary(ur.df(x_diff$XLK_diff,type="trend"))
+```
+
+The resulting p-value of the series without drift and trend is \<
+2.2e-16. Therefore, XLK becomes stationary after taking the first
+difference.
+
+```{r}
+summary(ur.df(x_diff$VGT_diff,type="trend"))
+```
+
+The resulting p-value of the series without drift and trend is \<
+2.2e-16. Therefore, after taking the first difference, VGT becomes
+stationary as well.
+
+```{r}
+library(MTS)
+MTSplot(x_diff)
+```
+
+<center>
+
+*Fig 13. The First Difference of VGT and XLK over the time*
+
+</center>
+
+From the above graph, we notice that two series have similar behaviors.
+Next, VARorder is used below to compute information criteria and the
+sequential Chi-square statistics for the VAR process which would help to
+select the right order of the VAR model.
+
+```{r}
+VARorder(x_diff)
+```
+
+And we fit the VAR model on the two series.
+
+```{r}
+m <- VAR(x_diff)
+m$coef
+```
+
+The above result suggests that only 1 lag is needed for the VAR model
+which is consistent with the result from VARorder function considering
+the AIC. And the AR(1) matrix for the VAR model is displayed above. And
+the following are the 4-step ahead VAR prediction of the first
+difference of the two assets.
+
+```{r}
+VARpred(m, 4)
+```
+
+## F. Conditional variance analysis: Various types of GARCH models
+
+```{r}
+t.test(XLK_R)
+```
+
+The above result shows that the p-value is greater than 0.05, thus we
+fail to reject the null hypothesis and cannot conclude that the mean of
+the log return of XLK differs from 0. Then we move onto conducting the
+Box-Ljung test to see if the square of the log return has serial
+correlation.
+
+```{r}
+Box.test(XLK_R^2,lag=10,type="Ljung")
+```
+
+Since the p-value is greater than 0.05, so we cannot conclude that the
+series have serial correlation so GARCH model does not seem necessary
+here to model XLK return volatility. However, we conduct a robustness
+test fitting a GARCH (1, 1) model to see whether the result is
+consistent with the above test or not.
+
+```{r}
+m1=garchFit(~garch(1,1),data=unclass(XLK_R[-1, ]),trace=F)
+summary(m1)
+```
+
+From the above result, we see that alpha term is not significant which
+is consistent with our finding from the Ljung Box test that GARCH model
+is not adequate to model the XLK volatility. In addition, we fitted a
+GARCH (0,1) model on XLK returns. The results show that while the
+parameter beta is significant the $R^2$ tells us that the GARCH model is
+not adequate for predicting volatility.
+
+```{r}
+spec1=ugarchspec(variance.model=list(model="sGARCH",garchOrder=c(0,1)),
+                   mean.model=list(armaOrder=c(0,0)))
+mm=ugarchfit(spec=spec1,data=XLK_R[-1, ])
+mm  ### see output
+```
+
+We then tried to switch the i.i.d. distribution from normal to student-t
+which gives a fatter tails on both ends.
+
+```{r}
+m2=garchFit(~garch(1,1),data=unclass(XLK_R[-1, ]),trace=F, cond.dist="std")
+summary(m2)
+```
+
+The results above suggest that alpha and beta are significant under the
+student-t distribution. And we checked that the Ljung Box tests for
+$R^2$ are not significant which means that the GARCH model is adequate
+in predicting XLK return volatility. Below is a graph of fitted
+volatility from the GARCH model which we could see some sign of
+volatility clustering.
+
+```{r}
+sigma.t=volatility(m2)
+ts.plot(sigma.t)
+```
+
+We use the above model to forecast the future 50-steps. Since we do not
+have an ARIMA part in the model, meaning we are treating the return data
+as i.i.d. (no heteroskedasticity in the mean), we see the mean forecast
+is constant throughout. The standard deviation column is the forecasting
+of the GARCH term which would eventually converge to
+$\sqrt{\frac{\omega}{1-\alpha -\beta}} = \sqrt{\frac{0.00002735}{1-0.1121-0.7891}}==0.01663797$
+
+```{r}
+predict(m2,50)
+```
+
+## G. Value-at-risk analysis
+
+```{r rmfit}
+"RMfit" <- function(rtn,estim=TRUE){
+# Estimation of the RiskMetrics special IGARCH(1,1) model.
+# rtn: return series 
+#
+Idata <<- rtn
+Var = var(Idata); S = 1e-6
+beta=0.96
+if(estim){
+params=c(beta = 0.9)
+lowerBounds = c(beta= S)
+upperBounds = c(beta = 1-S)
+# Step 3: set conditional distribution function:
+igarchDist = function(z,hh){dnorm(x = z/hh)/hh}
+# Step 4: Compose log-likelihood function:
+igarchLLH = function(parm){
+beta=parm[1]
+z = Idata; Meanz=mean(z^2)
+e= (1-beta) * c(Meanz, z[-length(Idata)]^2)
+h = timeSeries::filter(e,beta, "r", init=Meanz)
+#h = filter(e, beta, "r", init=Meanz)
+hh = sqrt(abs(h))
+llh = -sum(log(igarchDist(z, hh)))
+llh
+}
+###print(igarchLLH(params))
+# Step 5: Estimate Parameters and Compute Numerically Hessian:
+fit = nlminb(start = params, objective = igarchLLH,
+lower = lowerBounds, upper = upperBounds) #, control = list(trace=3))
+epsilon = 0.0001 * fit$par
+npar=length(params)
+Hessian = matrix(0, ncol = npar, nrow = npar)
+for (i in 1:npar) {
+for (j in 1:npar) {
+x1 = x2 = x3 = x4  = fit$par
+x1[i] = x1[i] + epsilon[i]; x1[j] = x1[j] + epsilon[j]
+x2[i] = x2[i] + epsilon[i]; x2[j] = x2[j] - epsilon[j]
+x3[i] = x3[i] - epsilon[i]; x3[j] = x3[j] + epsilon[j]
+x4[i] = x4[i] - epsilon[i]; x4[j] = x4[j] - epsilon[j]
+Hessian[i, j] = (igarchLLH(x1)-igarchLLH(x2)-igarchLLH(x3)+igarchLLH(x4))/
+(4*epsilon[i]*epsilon[j])
+}
+}
+# Step 6: Create and Print Summary Report:
+se.coef = sqrt(diag(solve(Hessian)))
+tval = fit$par/se.coef
+matcoef = cbind(fit$par, se.coef, tval, 2*(1-pnorm(abs(tval))))
+dimnames(matcoef) = list(names(tval), c(" Estimate",
+" Std. Error", " t value", "Pr(>|t|)"))
+cat("\nCoefficient(s):\n")
+printCoefmat(matcoef, digits = 6, signif.stars = TRUE)
+beta=fit$par[1]
+}
+else{cat("Default beta = 0.96 is used.","\n")}
+###
+z=Idata; Mz = mean(z^2)
+e= (1-beta)*c(Mz,z[-length(z)]^2)
+h = timeSeries::filter(e,beta, "r", init=Mz)
+#h = filter(e,beta, "r", init=Mz)
+vol = sqrt(abs(h))
+
+# Step 7: compute VaR and ES based on the estimated results
+T=length(h)
+Sigma=beta*h[T]+(1-beta)*z[T]^2
+Vpred=sqrt(Sigma)
+tt=matrix(c(T,Vpred),1,2)
+colnames(tt) <- c("Orig","Vpred")
+cat("\n Volatility prediction:\n")
+print(tt)
+prob=c(0.95,0.99,0.999)
+q1=qnorm(prob)
+d1=dnorm(q1); d11=d1/(1-prob)
+VaR=q1*Vpred
+ES=d11*Vpred
+tbl=cbind(prob,VaR,ES)
+cat("\n Risk measure based on RiskMetrics:\n")
+print(tbl)
+
+RMfit <- list(par=beta,volatility = vol)
+}
+
+
+```
+
+### Risk Metric
+
+```{r}
+#approach 1
+require(quantmod)
+getSymbols("XLK",from="1998-12-01",to="2022-04-07") 
+XLK_Price_Adj=XLK$XLK.Adjusted #% Define a new variable
+XLK_R=diff(log(XLK_Price_Adj)) #% Calculate log returns
+XLK_R<-na.omit(XLK_R)
+XLK_R <- as.numeric(unclass(XLK_R)) 
+#source("RMfit.R")
+RMfit(XLK_R)
+### One can use default parameter beta = 0.96 wihtout estimation with the command
+RMfit(XLK_R,estim=F)
+```
+
+Consequently, we have $VaR_{0.95} = 0.03171$, $ES_{0.95} = 0.03977$,
+$VaR_{0.99} = 0.04485$, $ES_{0.99} = 05138$. These results imply
+$VaR_{0.95} = \$31,715$ and $ES_{0.95} = \$39,772$ for the next trading
+day.
+
+Finally, for 10 days holding period, we have
+$VaR_{0.95}(10) = sqrt(10) × \$31,715 = \$100291$,
+$ES_{0.95}(10) = sqrt(10) × \$44850 = \$125770$.
+
+```{r rmeasure}
+"RMeasure" <- function(mu,sigma,cond.dist="norm",df=0){
+# calculate VaR and ES for a specified conditional distribution
+# p = 0.05, 0.01, 0.001, .0001
+#
+# cond.dist = "norm", "t", "std"
+prob=c(0.95,0.99,0.999,.9999)
+if(cond.dist=="norm"){
+q1=qnorm(prob)
+d1=dnorm(q1)
+VaR=mu+q1*sigma
+ES=mu+d1*sigma/(1-prob)
+tt=cbind(prob,VaR,ES)
+}
+#
+if(cond.dist=="std"){
+library(fGarch)
+if(df < 2.001)df=2.01
+q1=qstd(prob,nu=df)
+d1=dstd(q1,nu=df)
+VaR=mu+q1*sigma
+ES=mu+sigma*(d1/(1-prob))*(((df-2)+q1^2)/(df-1))
+tt=cbind(prob,VaR,ES)
+}
+#
+if(cond.dist=="t"){
+if(df < 2.01)df=2.01
+q1=qt(prob,df)
+d1=dt(q1,df)
+VaR=mu+q1*sigma
+#VaR=mu+q1*sigma/sqrt(df/(df-2))
+#ES=mu+sigma/sqrt(df/(df-2))*(d1/(1-prob))*((df+q1^2)/(df-1))
+ES=mu+sigma*(d1/(1-prob))*((df+q1^2)/(df-1))
+tt=cbind(prob,VaR,ES)
+}
+cat("\n Risk Measures for selected probabilities: \n")
+print(tt)
+
+RMeasure <- list(results=tt)
+}
+
+```
+
+```{r}
+### Econometric modeling
+require(fGarch)
+neg_return = -XLK_R
+m1=garchFit(~garch(1,1), data=neg_return, trace=F)
+summary(m1)
+pm1=predict(m1,10)
+pm1
+#source("RMeasure.R")
+RMeasure(-0.0008, 0.0186) # mean and std
+names(pm1)
+#0.0008077321	0.01861867	0.01861867
+#### 10-day VaR
+v1=sqrt(sum(pm1$standardDeviation^2))
+RMeasure(-0.0008,v1)
+
+
+```
+
+Consequently, we have for XLK: $VaR_0_._9_5 = 0.02982$,
+$ES_0.95 = 0.03759$, $VaR_0.99 = 0.04250$, $ES_0.99 = 0.04881$. These
+results imply $VaR_0.95 = \$29,820$ and $ES_0.95 = \$37,590$ for the
+next trading day.
+
+Finally, for 10 days holding period, we have $VaR_{0.95}(10) = \$97649$,
+$ES_{0.95}(10) = \$118870$.
+
+### Quantile regression
+
+```{r}
+#approach 3
+getSymbols("XLK",from="1998-12-24",to="2022-04-07") 
+XLK_R <- XLK[,6]
+XLK_R <- diff(log(XLK_R))
+XLK_R <- na.omit(XLK_R)
+neg_XLK_R = -XLK_R
+quantile(neg_XLK_R,c(0.95,0.99,0.999))
+getSymbols("^VIX",from="1998-12-24",to="2022-04-06") 
+VIX <- VIX[,6]
+VOL <- (XLK_R)^2
+da1 <- cbind(neg_XLK_R, VOL, VIX) 
+da1 <- na.omit(da1)
+colnames(da1)[2]<-"XLK.Volatility"
+require(quantreg)
+m3=rq(XLK.Adjusted~VIX.Adjusted,data=da1,tau=0.95)
+summary(m3)
+ts.plot(-XLK_R)
+lines(m3$fitted.values,col="red")
+```
+
+We employ a quantile regression with two predictors.The first predictor
+is the lag-1 daily volatility of the XLK stock. The second predictor is
+the lag-1 VIX index.
+
+The plot shows the negative XLK log returns and the fitted values of the
+quantile regression with probability q = 0.95. In red, is the
+time-varying value-at-risk(VaR) which shows the actual loss may vary
+when the loss exceeds the VaR.
+
+Consequently, we have for XLK: $VaR_0_._9_5 = 0.026427$,
+$VaR_0.99 = 0.047387$. These results imply $VaR_0.95 = \$26,427$ and
+$VaR_0.99 = \$47,387$ for the next trading day.
+
+## H. Conclusion and managerial implications
